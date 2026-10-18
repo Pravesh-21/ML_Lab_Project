@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="/styles/style.css">
+</head>
+<body>
+    <header>
+        <h1>Multi-Cancer detection System</h1>
+        <p>Prediction of cancer types, stage and survial percentage</p>
+    </header>
+    <main>
+        <form method = "POST" class = "card">
+            <label>
+                Age<input type="number" name="age" required>
+            </label>
+            <label>
+                Gender<select name="sex" required>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Unknown">Unknown</option>
+                </select>
+            </label>
+            <label>
+                Histology Code<select name="histology_code" required>
+                    {% for code in histology_codes %}
+                        <option value="{{ code }}">{{ code }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                Tumor stage<select name="tumor_stage" required>
+                    {% for stage in tumor_stages %}
+                        <option value="{{ stage }}">{{ stage }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                T_Stage<select name="t_stage" required>
+                    {% for stage in t_stages %}
+                        <option value="{{ stage }}">{{ stage }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                N_Stage<select name="n_stage" required>
+                    {% for stage in n_stages %}
+                        <option value="{{ stage }}">{{ stage }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                M_Stage<select name="m_stage" required>
+                    {% for stage in m_stages %}
+                        <option value="{{ stage }}">{{ stage }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                Radiation Therapy<select name="radiation_therapy" required>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                    <option value="Unknown">Unknown</option>
+                </select>
+            </label>
+            <label>
+                Cancer Returned<select name="new_tumor_event" required>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                    <option value="Unknown">Unknown</option>
+                </select>
+            </label>
+                <button type="submit">Predict</button>
+            
+        </form>
+        {% if result %}
+            <section class="card">
+                <h2>Prediction</h2>
+                <p>Cancer type: <strong>{{ result.organ }}</strong></p>
+                <p>Stage: <strong>{{ result.stage }}</strong></p>
+                <p>Survival: <strong>{{ result.survival }}</strong></p>
+                {% if result.risk is not none %}
+                <p>Risk of death: <strong>{{ result.risk }}%</strong></p>
+                {% endif %}
+            </section>
+        {% endif %}
+    </main>
+</body>
+</html>

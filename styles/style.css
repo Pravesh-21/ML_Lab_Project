@@ -1,0 +1,269 @@
+/* =========================================================
+   Multi-Cancer Detection System — stylesheet
+   Works with the existing index.html (no HTML changes needed)
+   ========================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+    --bg:          #eef3f6;
+    --card:        #ffffff;
+    --text:        #102a33;
+    --muted:       #5b7079;
+    --line:        #dde6ea;
+    --field:       #f7fafb;
+    --accent:      #0e7c74;
+    --accent-dark: #0a5f59;
+    --accent-soft: #e2f3f1;
+    --radius:      16px;
+    --shadow:      0 1px 2px rgba(16, 42, 51, .05), 0 12px 32px -12px rgba(16, 42, 51, .18);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    color: var(--text);
+    background:
+        radial-gradient(1200px 400px at 85% -10%, #d4ece9 0%, transparent 60%),
+        var(--bg);
+}
+
+/* ---------------- header ---------------- */
+header {
+    position: relative;
+    overflow: hidden;
+    padding: 44px 24px 96px;
+    text-align: center;
+    color: #fff;
+    background: linear-gradient(135deg, #0a5f59 0%, #0e7c74 55%, #13a397 100%);
+}
+
+/* soft decorative circles */
+header::before,
+header::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .07);
+}
+header::before { width: 340px; height: 340px; top: -170px; left: -90px; }
+header::after  { width: 260px; height: 260px; bottom: -150px; right: -60px; }
+
+header h1 {
+    position: relative;
+    margin: 0;
+    font-size: clamp(26px, 4vw, 38px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+header p {
+    position: relative;
+    margin: 10px auto 0;
+    max-width: 520px;
+    font-size: 15px;
+    opacity: .85;
+}
+
+/* ---------------- layout ---------------- */
+main {
+    max-width: 640px;               /* form alone: centred */
+    margin: -64px auto 48px;        /* overlaps the header */
+    padding: 0 16px;
+    display: grid;
+    gap: 24px;
+    align-items: start;
+}
+
+/* when a result is shown: form + result side by side */
+main:has(section.card) {
+    max-width: 1080px;
+    grid-template-columns: 1.35fr 1fr;
+}
+
+/* ---------------- cards ---------------- */
+.card {
+    position: relative;
+    background: var(--card);
+    border: 1px solid rgba(255, 255, 255, .6);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 28px;
+}
+
+/* ---------------- form ---------------- */
+form.card {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 16px;
+}
+
+form.card::before {
+    content: 'Patient details';
+    grid-column: 1 / -1;
+    font-size: 18px;
+    font-weight: 700;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+/* histology code gets the full width (it has long codes) */
+form.card label:nth-of-type(3) { grid-column: 1 / -1; }
+
+label {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+input,
+select {
+    width: 100%;
+    padding: 11px 14px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    background-color: var(--field);
+    border: 1.5px solid var(--line);
+    border-radius: 10px;
+    transition: border-color .15s, box-shadow .15s, background-color .15s;
+}
+
+/* custom dropdown arrow */
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 38px;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%235b7079' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+}
+
+input:hover,
+select:hover { border-color: #c3d3d9; }
+
+input:focus,
+select:focus {
+    outline: none;
+    background-color: #fff;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+/* ---------------- button ---------------- */
+button {
+    grid-column: 1 / -1;
+    margin-top: 8px;
+    padding: 14px;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: .01em;
+    color: #fff;
+    background: linear-gradient(135deg, var(--accent) 0%, #13a397 100%);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 8px 20px -8px rgba(14, 124, 116, .7);
+    transition: transform .15s, box-shadow .15s, filter .15s;
+}
+
+button:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+    box-shadow: 0 12px 24px -10px rgba(14, 124, 116, .8);
+}
+
+button:active { transform: translateY(0); }
+
+/* ---------------- result card ---------------- */
+section.card {
+    position: sticky;
+    top: 24px;
+    overflow: hidden;
+    animation: rise .4s ease both;
+}
+
+/* coloured strip on top */
+section.card::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 5px;
+    background: linear-gradient(90deg, var(--accent), #13a397, #7dd3c8);
+}
+
+section.card h2 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+section.card p {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin: 0;
+    padding: 16px 0;
+    font-size: 14px;
+    color: var(--muted);
+    border-bottom: 1px dashed var(--line);
+}
+
+section.card p:last-of-type { border-bottom: none; }
+
+section.card strong {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    text-align: right;
+}
+
+/* first row (cancer type) is the headline result */
+section.card p:first-of-type {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 12px 18px 16px;
+    margin: 4px -4px 8px;
+    background: var(--accent-soft);
+    border: none;
+    border-radius: 12px;
+}
+
+section.card p:first-of-type strong {
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--accent-dark);
+    text-align: left;
+}
+
+@keyframes rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* ---------------- phones ---------------- */
+@media (max-width: 860px) {
+    main:has(section.card) { grid-template-columns: 1fr; }
+    section.card { position: static; }
+}
+
+@media (max-width: 520px) {
+    header { padding: 32px 16px 84px; }
+    .card { padding: 20px; }
+    form.card { grid-template-columns: 1fr; }
+}
