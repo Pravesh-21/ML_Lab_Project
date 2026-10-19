@@ -224,6 +224,7 @@ Open **http://127.0.0.1:5000** in your browser.
 
 ## 👥 Authors
 
-- *Your name(s) here*
+- *Pravesh SHrivastava*
+- *Aniket Nawkar*
 
 *Made as part of the Machine Learning Lab project.*
