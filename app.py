@@ -127,11 +127,11 @@ div[data-baseweb="select"] > div:focus-within { border-color: var(--accent) !imp
 # 2. LOAD MODELS (once, then cached)
 # =====================================================================
 @st.cache_resource
-def load_models(name):
-    model   = joblib.load(f"scripts/{name}_model.pkl")
-    prep    = joblib.load(f"scripts/{name}_preprocessor.pkl")
-    encoder = joblib.load(f"scripts/{name}_label_encoder.pkl")
-    return model, prep, encoder
+def load_models(filename):
+   return joblib.load(f"models/{filename}.pkl")
+organ_bundle    = load_models("organ_catboost")
+stage_bundle    = load_models("stage_lightgbm_tnm")
+survival_bundle = load_models("survival_catboost")
 
 organ_model, organ_prep, organ_encoder = load_models("organ")
 stage_model, stage_prep, stage_encoder = load_models("stage")
