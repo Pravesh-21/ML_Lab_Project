@@ -1,8 +1,10 @@
 # 🧬 Multi-Cancer Detection System
 
-A machine learning system that predicts **cancer type (organ)**, **cancer stage**, and **patient survival** from clinical patient data, served through a simple **Flask** web app.
+A machine learning system that predicts **cancer type (organ)**, **cancer stage**, and a **survival outcome with a mortality risk score** from clinical patient data, served through an interactive **Streamlit** web app.
 
 > ⚠️ **Disclaimer:** This is an educational project. Predictions are statistical estimates from historical data and are **not** a medical diagnosis.
+
+🔗 **Live demo:** *add your Streamlit Cloud link here*
 
 ---
 
@@ -12,28 +14,30 @@ When a patient is known to have a tumour, three questions matter most:
 
 1. **Where is the cancer?** → *organ / cancer type*
 2. **How advanced is it?** → *stage (I–IV)*
-3. **What is the outlook?** → *survival (Living / Deceased) + risk of death %*
+3. **What is the outlook?** → *survival (Living / Deceased) + mortality risk score*
 
-This project trains a separate model for each question and chains them together, the same way information flows in a real clinical workflow:
+The project trains **one dedicated model per question** and chains them together, the same way information flows in a clinical workflow:
 
 ```
 Patient details ──► 🫁 Organ model ──► 📊 Stage model ──► ❤️ Survival model
-                        │                   │                    │
-                    "Breast"            "STAGE II"         "LIVING · 6% risk"
+                     (CatBoost)        (LightGBM)          (CatBoost)
+                        │                  │                    │
+                    "Breast"           "STAGE II"        "LIVING · 4% risk"
 ```
 
-The predicted organ is fed into the stage model, and both organ and stage are fed into the survival model.
+The predicted organ is passed to the stage model, and both organ and stage are passed to the survival model.
 
 ---
 
 ## ✨ Features
 
-- **3 prediction tasks** — organ (23 classes), stage (4 classes), survival (2 classes)
-- **6 ML models compared per task** — Logistic Regression, KNN, SVC, Decision Tree, Random Forest, XGBoost
-- **Handles missing information** — any field can be left as `Unknown`
-- **Smart staging** — brain tumours and sarcomas are reported as *Not staged* (they don't use the Stage I–IV system)
-- **Risk score** — probability of death from the survival model
-- **Web interface** — enter patient details in a form and get all three predictions instantly
+- **3 prediction tasks**: organ (23 classes), stage (4 classes), survival (2 classes)
+- **9 ML algorithms compared per task**: Logistic Regression, KNN, SVC, Decision Tree, Random Forest, XGBoost, **LightGBM**, **CatBoost**
+- **One model file per target**: each `.pkl` contains everything needed to predict (preprocessing + model + label names)
+- **Handles missing information**: any field can be left as `Unknown`
+- **Smart staging**: uses the entered stage when known, predicts it from T/N/M when not, and reports brain tumours and sarcomas as *Not staged*
+- **Mortality risk score**: predicted probability of the *Deceased* class
+- **Web interface**: a styled Streamlit app; enter patient details and get all three predictions instantly
 
 ---
 
@@ -57,7 +61,7 @@ The dataset combines patient records from **TCGA-Reports** (Kefeli & Tatonetti, 
 | `race`, `ethnicity` | As recorded by the hospital |
 | `histology_code` | ICD-O-3 code for the tumour's cell type (e.g. `8500/3`) |
 | `tumor_stage` | Overall stage (Stage I–IV and sub-stages) |
-| `t_stage`, `n_stage`, `m_stage` | TNM staging — Tumour size, lymph Nodes, Metastasis |
+| `t_stage`, `n_stage`, `m_stage` | TNM staging: Tumour size, lymph Nodes, Metastasis |
 | `radiation_therapy` | Whether the patient received radiation |
 | `new_tumor_event` | Whether the cancer returned after treatment |
 | `survival_status` | LIVING / DECEASED |
@@ -70,49 +74,63 @@ The dataset combines patient records from **TCGA-Reports** (Kefeli & Tatonetti, 
 ## ⚙️ Methodology
 
 ### 1. Data cleaning
-- **Numerical (`age`)** — skewness checked (−0.44); missing values filled with the **median**
-- **Categorical** — columns with **< 5 %** missing filled with the **mode**; columns with **> 5 %** missing filled with **`Unknown`** (so the model can learn from missingness, e.g. unstaged brain tumours)
-- **Target columns** are never filled — rows with a missing target are dropped for that task
+- **Numerical (`age`)**: skewness checked (−0.44); missing values filled with the **median**
+- **Categorical**: columns with **< 5 %** missing filled with the **mode**; columns with **> 5 %** missing filled with **`Unknown`**, so the model can learn from missingness (e.g. unstaged brain tumours)
+- **Target columns** are never filled; rows with a missing target are dropped for that task
+- **Stage labels** simplified to four groups (e.g. `STAGE IIA`, `Stage IIB` → `STAGE II`)
 
 ### 2. Outlier analysis
-- IQR method on `age` flagged ~100 patients under 24
+- The IQR method on `age` flagged ~100 patients under 24
 - **Kept**, because they are genuine young patients with cancers common at younger ages (brain, thyroid, testicular), not data errors
 
 ### 3. Feature selection (per task)
 
 | Task | Target | Inputs | Removed (to avoid leakage) |
 |---|---|---|---|
-| Organ | `organ` | age, sex, histology, stage, TNM, therapy, recurrence | cancer type/name, survival |
-| Stage | `stage` (I–IV) | age, sex, histology, therapy, recurrence, **organ** | `tumor_stage`, T, N, M |
-| Survival | `survival_status` | age, sex, histology, stage, TNM, therapy, recurrence, **organ** | `survival_months` |
+| Organ | `organ` | age, sex, histology, stage, T/N/M, therapy, recurrence | cancer type/name, survival |
+| Stage | `stage` (I–IV) | age, sex, histology, **T/N/M**, therapy, recurrence, **organ** | `tumor_stage` |
+| Survival | `survival_status` | age, sex, histology, stage, T/N/M, therapy, recurrence, **organ** | `survival_months` |
 
-`race` and `ethnicity` were dropped because they did not improve accuracy.
+`race` and `ethnicity` were dropped: they added under 0.5 % accuracy and raise fairness concerns.
 
 ### 4. Preprocessing
-- `StandardScaler` for `age`
-- `OneHotEncoder(handle_unknown='ignore')` for categorical features
-- `LabelEncoder` for the target
-- **Stratified 80 / 20** train–test split; preprocessing fitted on training data only
+- `StandardScaler` for `age`; `OneHotEncoder(handle_unknown='ignore')` for categorical features
+- **CatBoost (survival)** uses its **native categorical handling** instead of one-hot encoding
+- **Stratified 80 / 20** train–test split; all preprocessing fitted on training data only
 
-### 5. Model training
-Six classifiers trained and compared on each task; the best model per task was saved with `joblib`.
+### 5. Model training and selection
+All algorithms were trained on each task, and the best model per task was saved as a **single file** with `joblib`:
+
+```python
+{'model': <Pipeline or CatBoost>, 'labels': [...class names...], 'columns': [...]}   # columns: CatBoost only
+```
 
 ---
 
 ## 📊 Results
 
-| Task | Best model | Accuracy | Baseline* |
-|---|---|---|---|
-| Organ (23 classes) | Random Forest | **91 %** (macro F1 0.89) | 11 % |
-| Stage (4 classes) | Logistic Regression | **~52 %** | 32 % |
-| Survival (2 classes) | Logistic Regression | **~80 %** | 71 % |
+### Final models
+
+| Task | Best model | Accuracy | Macro F1 | Baseline* |
+|---|---|---|---|---|
+| Organ (23 classes) | **CatBoost** | **92.7 %** | 0.907 | 11 % |
+| Stage (4 classes) | **LightGBM** (with T/N/M) | **96.2 %** | 0.955 | 32 % |
+| Survival (2 classes) | **CatBoost** (native categories) | **80.9 %** | 0.765 (ROC-AUC 0.864) | 71 % |
 
 <sub>*Baseline = always predicting the most common class.</sub>
 
-**Key observations**
-- **Organ** prediction is strong. Weakest classes: Skin (recall 0.50) and Stomach (0.72), mostly due to few training samples.
-- **Stage** is hardest, because stage is defined by T/N/M, which must be excluded to avoid leakage. Most errors are between neighbouring stages (e.g. II vs III).
-- **Survival** is imbalanced (71 % Living), so **recall for DECEASED** is reported alongside accuracy.
+### Gradient-boosting comparison
+
+| Task | XGBoost | LightGBM | CatBoost |
+|---|---|---|---|
+| Organ | 92.7 % | 91.5 % | **92.7 %** |
+| Stage (with T/N/M) | 95.9 % | **96.2 %** | 96.1 % |
+| Survival | 80.1 % | 79.5 % | **80.9 %** (native) |
+
+### Key observations
+- **Organ**: the boosting models improved on the earlier Random Forest (91 % → 92.7 %). The weakest classes are Skin and Stomach, which have few training samples.
+- **Stage**: without T/N/M, accuracy is only **~51 %**; with T/N/M it rises to **96.2 %**, confirming that TNM descriptors carry most of the staging information.
+- **Survival**: hyperparameter tuning, ensembling, ordinal TNM encoding and follow-up-based label filtering gave **no significant gain** (all within ±0.6 %). Performance is limited by the information in the structured features (no treatment, lab or comorbidity data), not by the choice of model.
 
 ---
 
@@ -120,27 +138,19 @@ Six classifiers trained and compared on each task; the best model per task was s
 
 ```
 ML_Lab_Project/
-├── app.py                         # Flask web app
+├── app.py                          # Streamlit web app
+├── requirements.txt
+├── .streamlit/
+│   └── config.toml                 # app colour theme
 ├── datasets/
 │   └── cancer_patients_tabular.csv
-├── scripts/
-│   ├── ML_project.ipynb           # data cleaning, EDA, training
-│   ├── organ_model.pkl            # ┐
-│   ├── organ_preprocessor.pkl     # │ organ
-│   ├── organ_label_encoder.pkl    # ┘
-│   ├── stage_model.pkl            # ┐
-│   ├── stage_preprocessor.pkl     # │ stage
-│   ├── stage_label_encoder.pkl    # ┘
-│   ├── survival_model.pkl         # ┐
-│   ├── survival_preprocessor.pkl  # │ survival
-│   └── survival_label_encoder.pkl # ┘
-├── templates/
-│   └── index.html                 # web page
-└── styles/
-    └── style.css                  # styling
+├── models/                         # one file per target
+│   ├── organ_catboost.pkl
+│   ├── stage_lightgbm_tnm.pkl
+│   └── survival_catboost.pkl
+└── scripts/
+    └── ML_project.ipynb            # cleaning, EDA, training, evaluation
 ```
-
-Each task uses **three files**: the *preprocessor* converts inputs to numbers, the *model* predicts, and the *label encoder* converts the prediction back to a readable label.
 
 ---
 
@@ -148,7 +158,7 @@ Each task uses **three files**: the *preprocessor* converts inputs to numbers, t
 
 ### 1. Clone and enter the project
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Pravesh-21/ML_Lab_Project.git
 cd ML_Lab_Project
 ```
 
@@ -161,18 +171,16 @@ source .venv/bin/activate        # Linux / macOS
 
 ### 3. Install dependencies
 ```bash
-pip install flask pandas numpy scikit-learn xgboost joblib matplotlib seaborn
+pip install -r requirements.txt
 ```
 
-> Use the **same scikit-learn version** that was used to train the models, otherwise the `.pkl` files may fail to load.
+> Use the **same scikit-learn version** listed in `requirements.txt`, otherwise the `.pkl` files may fail to load.
 
-### 4. Run the web app
+### 4. Run the app
 ```bash
-python app.py
+streamlit run app.py
 ```
-Open **http://127.0.0.1:5000** in your browser.
-
-> Run the app from the `ML_Lab_Project` folder and open it through Flask (port **5000**), not by opening `index.html` directly or via Live Server.
+It opens at **http://localhost:8501**.
 
 ---
 
@@ -183,24 +191,30 @@ Open **http://127.0.0.1:5000** in your browser.
 | Age | 52 | 58 | 65 |
 | Gender | Female | Female | Male |
 | Histology Code | 8500/3 | 9401/3 | 8140/3 |
-| Tumor stage | STAGE IIA | Unknown | STAGE IV |
+| Tumor stage | STAGE IIA | Unknown | Unknown |
 | T / N / M | T2 / N0 / M0 | Unknown | T3 / N1 / M1 |
 | Radiation Therapy | Yes | Yes | No |
 | Cancer Returned | No | Yes | No |
 | **Expected organ** | Breast | Brain | Colorectal |
-| **Expected stage** | Stage II | Not staged | Stage IV |
+| **Expected stage** | Stage IIA (entered) | Not staged | **Stage IV** (predicted from T/N/M) |
 | **Expected survival** | Living (low risk) | Deceased (high risk) | Living (medium risk) |
 
 ---
 
 ## ⚠️ Limitations
 
-- **All patients have cancer** — the system identifies *which* cancer, not *whether* a person has cancer.
-- **`histology_code` is strongly linked to organ** — it raises organ accuracy from ~73 % to ~91 %.
-- **Stage prediction without TNM data is inherently limited.**
-- **Bone cancer is not truly represented** — the "Bone & Soft Tissue" class is TCGA sarcoma (mostly soft tissue).
+- **All patients have cancer**: the system identifies *which* cancer, not *whether* a person has cancer.
+- **`histology_code` is strongly linked to organ**, which contributes substantially to organ accuracy.
+- **Stage prediction without T/N/M is unreliable (~51 %)**; the high stage accuracy applies when T/N/M are available.
+- **The mortality risk score** is *P(deceased at last follow-up)*. It does not account for follow-up time and is **not** a 5-year survival probability.
+- **Survival is capped at ~81 %** by the available features; treatment, laboratory and comorbidity data are not included.
+- **Bone cancer is not truly represented**: the "Bone & Soft Tissue" class is TCGA sarcoma (mostly soft tissue).
 - **Data comes mainly from US hospitals**, so performance on other populations (e.g. Indian patients) is untested.
-- Some patients may have short follow-up, so a *Living* label is not a guarantee of long-term survival.
+
+### Future work
+- Time-to-event survival models (e.g. Cox regression, survival forests)
+- Rule-based stage derivation from T/N/M (AJCC)
+- Validation on an external, non-TCGA patient cohort
 
 ---
 
@@ -208,10 +222,12 @@ Open **http://127.0.0.1:5000** in your browser.
 
 | Layer | Tools |
 |---|---|
-| Data & ML | Python, pandas, NumPy, scikit-learn, XGBoost |
+| Data & ML | Python, pandas, NumPy, scikit-learn |
+| Gradient boosting | XGBoost, LightGBM, CatBoost |
 | Visualisation | Matplotlib, Seaborn |
 | Model storage | joblib |
-| Web app | Flask, HTML, CSS (Jinja2 templates) |
+| Web app | Streamlit (custom CSS) |
+| Deployment | Streamlit Community Cloud |
 
 ---
 
@@ -219,12 +235,15 @@ Open **http://127.0.0.1:5000** in your browser.
 
 - Kefeli, J. & Tatonetti, N. (2024). *TCGA-Reports: A machine-readable pathology report resource for benchmarking text-based AI models.* Patterns.
 - The Cancer Genome Atlas (TCGA) PanCancer Atlas clinical data, via cBioPortal.
+- Prokhorenkova, L. et al. (2018). *CatBoost: unbiased boosting with categorical features.* NeurIPS.
+- Ke, G. et al. (2017). *LightGBM: A highly efficient gradient boosting decision tree.* NeurIPS.
+- Chen, T. & Guestrin, C. (2016). *XGBoost: A scalable tree boosting system.* KDD.
 
 ---
 
 ## 👥 Authors
 
-- *Pravesh SHrivastava*
-- *Aniket Nawkar*
+- **Pravesh Shrivastava**
+- **Aniket Nawkar**
 
 *Made as part of the Machine Learning Lab project.*

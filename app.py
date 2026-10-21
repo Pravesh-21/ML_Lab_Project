@@ -1,4 +1,5 @@
 import joblib
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -126,16 +127,25 @@ div[data-baseweb="select"] > div:focus-within { border-color: var(--accent) !imp
 # =====================================================================
 # 2. LOAD MODELS (once, then cached)
 # =====================================================================
+#  One file per target. Each file holds:
+#    'model'   -> the trained model (Pipeline, or CatBoost with native categories)
+#    'labels'  -> class names, in the order the model's numbers refer to
+#    'columns' -> (only for native CatBoost) which input columns to pass
 @st.cache_resource
-def load_models(filename):
-   return joblib.load(f"models/{filename}.pkl")
-organ_bundle    = load_models("organ_catboost")
-stage_bundle    = load_models("stage_lightgbm_tnm")
-survival_bundle = load_models("survival_catboost")
+def load_model(filename):
+    return joblib.load(f"models/{filename}.pkl")
 
-organ_model, organ_prep, organ_encoder = load_models("organ")
-stage_model, stage_prep, stage_encoder = load_models("stage")
-surv_model,  surv_prep,  surv_encoder  = load_models("survival")
+organ_bundle    = load_model("organ_catboost")
+stage_bundle    = load_model("stage_lightgbm_tnm")
+survival_bundle = load_model("survival_catboost")
+
+
+def predict(bundle, patient):
+    """Return (label, probabilities) for one patient."""
+    X = patient[bundle["columns"]] if "columns" in bundle else patient
+    number = int(np.ravel(bundle["model"].predict(X))[0])     # e.g. 4
+    probs  = bundle["model"].predict_proba(X)[0]               # one probability per label
+    return bundle["labels"][number], probs
 
 
 @st.cache_data
@@ -202,34 +212,29 @@ if submitted:
     }])
 
     # 1. organ
-    X = organ_prep.transform(patient)
-    organ = organ_encoder.inverse_transform(organ_model.predict(X))[0]
+    organ, _ = predict(organ_bundle, patient)
     patient["organ"] = organ
 
-    # 2. stage
+    # 2. stage (uses T, N, M when given)
     if organ in NOT_STAGED:
         stage, note = "Not staged", f"{organ} cancers are not staged as Stage I–IV."
     elif tumor_stage != "Unknown":
         stage, note = tumor_stage, "Taken from your input."
     else:
-        X = stage_prep.transform(patient)
-        stage = stage_encoder.inverse_transform(stage_model.predict(X))[0]
-        note = "Predicted by the model."
+        stage, _ = predict(stage_bundle, patient)
+        note = ("Predicted from T, N, M." if "Unknown" not in (t_stage, n_stage, m_stage)
+                else "Predicted by the model (less reliable without T, N, M).")
         patient["tumor_stage"] = stage            # use predicted stage for survival
 
-    # 3. survival
-    X = surv_prep.transform(patient)
-    survival = surv_encoder.inverse_transform(surv_model.predict(X))[0]
-
-    risk_html = ""
-    if hasattr(surv_model, "predict_proba"):
-        risk = surv_model.predict_proba(X)[0][list(surv_encoder.classes_).index("DECEASED")]
-        pct = round(risk * 100)
-        color = "#15803d" if pct < 30 else "#b54708" if pct < 60 else "#b42318"
-        risk_html = f"""
-            <div class="row"><span>Risk of death</span><b>{pct}%</b></div>
-            <div class="risk-track"><div class="risk-fill" style="width:{pct}%; background:{color};"></div></div>
-        """
+    # 3. survival + mortality risk
+    survival, probs = predict(survival_bundle, patient)
+    risk = probs[list(survival_bundle["labels"]).index("DECEASED")]
+    pct = round(risk * 100)
+    color = "#15803d" if pct < 30 else "#b54708" if pct < 60 else "#b42318"
+    risk_html = f"""
+        <div class="row"><span>Mortality risk score</span><b>{pct}%</b></div>
+        <div class="risk-track"><div class="risk-fill" style="width:{pct}%; background:{color};"></div></div>
+    """
 
     st.html(f"""
     <div class="result-card">
